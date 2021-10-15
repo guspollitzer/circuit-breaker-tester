@@ -7,7 +7,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-
+/** A circuit breaker whose state is always updated by the same thread.
+ * Useful when the client already has a single thread executor service for any other reason. */
 public class CircuitBreakerExec extends CircuitBreaker {
 
 	/**
@@ -36,7 +37,7 @@ public class CircuitBreakerExec extends CircuitBreaker {
 		this.singleThreadExecutor = aSingleThreadExecutor;
 	}
 
-	public <T> CompletableFuture<Optional<T>> applyAsync(
+	public <T> CompletableFuture<Optional<T>> executeAsync(
 			final Supplier<CompletableFuture<T>> supplier,
 			final Predicate<T> isOkDecider,
 			final StateChangeListener listener

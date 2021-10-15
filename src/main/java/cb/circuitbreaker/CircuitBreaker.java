@@ -8,12 +8,12 @@ public abstract class CircuitBreaker {
 	protected static final long NANOS_PER_MILLI = 1_000_000;
 	private static final Random RANDOM = new Random();
 	/**
-	 * The threshold that determines when to open this circuit breaker. When the exponential moving average of the proportion of failures is over this
-	 * value, the circuit is opened.
+	 * The threshold that determines when to open this circuit breaker. When the exponential moving average of the proportion of failures is greater
+	 * than this value, the circuit is opened.
 	 */
 	protected final double breakThreshold;
 	/**
-	 * The amount of time to wait after the first emission failure to do a retry. This time is double for each retry
+	 * The amount of time that the circuit remains open before switching to half-open state. This period is doubled every consecutive failed attempt.
 	 */
 	protected final long initialRecoverNanos;
 	/**
@@ -49,7 +49,7 @@ public abstract class CircuitBreaker {
 	 *
 	 * @param breakThreshold       the threshold that determines when to open this circuit breaker. When the exponential moving average of the
 	 *                             proportion of failures is over this value, the circuit is opened.
-	 * @param initialRecoverMillis the amount of time that the circuit remains opened before switching to half-open state. This period is doubled
+	 * @param initialRecoverMillis the amount of time that the circuit remains open before switching to half-open state. This period is doubled
 	 *                             every consecutive failed attempt.
 	 * @param alfa                 the coefficient of the exponential moving average of the proportion of failures.
 	 * @param chrono               the chronometer used to measure the elapsed time.
@@ -76,10 +76,10 @@ public abstract class CircuitBreaker {
 				tries += 1;
 				// apply a -20% to +25% randomness to the retry delay
 				var retryDelayRandomnessX100 = (RANDOM.nextInt(45) + 80);
-				nextTryNano = now + (initialRecoverNanos * (1L << tries) * retryDelayRandomnessX100) / 100;
+				nextTryNano = now + (initialRecoverNanos * tries * retryDelayRandomnessX100) / 100;
 			}
 		} else {
-			// reaches here if the try was successful and the circuit is closed
+			// reaches here if the try was successful or the circuit is closed
 			failuresProportionEma = failuresProportionEma * (1d - alfa) + (hasFailed ? alfa : 0d);
 			if (hasFailed) {
 				if (failuresProportionEma > breakThreshold) {

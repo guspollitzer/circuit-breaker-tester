@@ -5,6 +5,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/** A circuit breaker whose state is updated inside a synchronized section. */
 public class CircuitBreakerSync extends CircuitBreaker {
 
 	/**
@@ -27,17 +28,36 @@ public class CircuitBreakerSync extends CircuitBreaker {
 	}
 
 	/**
-	 * Invokes the specified `supplier` trough this circuit breaker.
+	 * Applies this circuit breaker to the specified `supplier`.
 	 *
-	 * The `supplier` is not invoked if this instance is open.
+	 * The returned supplier does not invoke the received one when this instance is open.
 	 *
 	 * The circuit is opened when the exponential moving average of the proportion of failures ({@code failures/(failures + successes)}) crosses the
 	 * `breakThreshold`.
 	 *
-	 * Both; abrupt terminations of either, the `supplier` of the `isOkDecider`, and results such that applying the `isOkDecider` predicate to it give
+	 * Both; abrupt terminations of either, the received `supplier` or the `isOkDecider`, and results such that applying the `isOkDecider` predicate to it give
 	 * false; are considered failures.
 	 */
-	public <T> Optional<T> apply(
+	public <T> Supplier<Optional<T>> apply(
+			final Supplier<T> supplier,
+			final Predicate<T> isOkDecider,
+			final StateChangeListener listener
+	) {
+		return () -> execute(supplier, isOkDecider, listener);
+	}
+
+	/**
+	 * Executes the specified `supplier` trough this circuit breaker.
+	 *
+	 * The received `supplier` is not called when this instance is open.
+	 *
+	 * The circuit is opened when the exponential moving average of the proportion of failures ({@code failures/(failures + successes)}) crosses the
+	 * `breakThreshold`.
+	 *
+	 * Both; abrupt terminations of either, the received `supplier` or the `isOkDecider`, and results such that applying the `isOkDecider` predicate to it give
+	 * false; are considered failures.
+	 */
+	public <T> Optional<T> execute(
 			final Supplier<T> supplier,
 			final Predicate<T> isOkDecider,
 			final StateChangeListener listener
@@ -60,7 +80,16 @@ public class CircuitBreakerSync extends CircuitBreaker {
 		}
 	}
 
-	public <T> CompletableFuture<Optional<T>> applyAsync(
+
+	public <T> Supplier<Optional<CompletableFuture<T>>> applyAsync(
+			final Supplier<CompletableFuture<T>> supplier,
+			final Predicate<T> isOkDecider,
+			final StateChangeListener listener
+	) {
+		return () -> executeAsync(supplier,isOkDecider, listener);
+	}
+
+	public <T> Optional<CompletableFuture<T>> executeAsync(
 			final Supplier<CompletableFuture<T>> supplier,
 			final Predicate<T> isOkDecider,
 			final StateChangeListener listener
@@ -69,17 +98,17 @@ public class CircuitBreakerSync extends CircuitBreaker {
 		if (isBroken) {
 			synchronized (this) {
 				if (isBroken && now < nextTryNano) {
-					return CompletableFuture.completedFuture(Optional.empty());
+					return Optional.empty();
 				}
 			}
 		}
 		try {
-			return supplier.get().thenApply(
+			return Optional.of(supplier.get().thenApply(
 					result -> {
 						updateRevealingly(now, !isOkDecider.test(result), listener);
-						return Optional.ofNullable(result);
+						return result;
 					}
-			);
+			));
 		} catch (Exception e) {
 			updateRevealingly(now, true, listener);
 			throw e;
