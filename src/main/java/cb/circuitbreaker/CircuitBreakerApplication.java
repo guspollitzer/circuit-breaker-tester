@@ -58,12 +58,12 @@ public class CircuitBreakerApplication {
 			var meliBreaker5 = CircuitBreakers.newExponentialBreaker("5", 10, 120, 0.2, 4, 60, 0.5, 1, 2);
 			var meliBreaker6 = CircuitBreakers.newExponentialBreaker("6", 10, 240, 0.2, 8, 60, 0.5, 1, 2);
 			var meliBreakers = Map.of(
-					"MeLi Breaker1", meliBreaker1,
-					"MeLi Breaker2", meliBreaker2,
-					"MeLi Breaker3", meliBreaker3,
-					"MeLi Breaker4", meliBreaker4,
-					"MeLi Breaker5", meliBreaker5,
-					"MeLi Breaker6", meliBreaker6
+					"meLi Breaker1", meliBreaker1,
+					"meLi Breaker2", meliBreaker2,
+					"meLi Breaker3", meliBreaker3,
+					"meLi Breaker4", meliBreaker4,
+					"meLi Breaker5", meliBreaker5,
+					"meLi Breaker6", meliBreaker6
 			);
 			meliBreakerFacakdes = meliBreakers.entrySet().stream()
 					.map(entry -> buildAFacadeForAMeliCircuitBreaker(entry.getKey(), entry.getValue()));
@@ -223,7 +223,9 @@ public class CircuitBreakerApplication {
 	 * @return the received long converted to String after waiting some time. */
 	String work(long milli) {
 		try {
-			Thread.sleep(PARALLELISM);
+			if (PARALLELISM > 1) {
+				Thread.sleep(PARALLELISM);
+			}
 			return Long.toString(milli);
 		} catch (InterruptedException e) {
 			return String.format("work sleep interrupted at %s\n", milli);

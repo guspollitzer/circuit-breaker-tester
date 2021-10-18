@@ -147,30 +147,32 @@ public class Tester {
 		final Optional<String> response;
 	}
 
+	/** Determines if the simulated service responds successfully or not.
+	 * The probability of success depends on the received millisecond. */
 	private static boolean isOk(long milli) {
-//		var ok = plateauValley(milli);
+//		var ok = valleyPlateau(milli);
 //		var ok = valleyClimb(milli);
-//		var ok = plateauClimb(milli);
-		var ok = milli < NUMBER_OF_TICKS / 2 ? plateauValley(milli) : plateauClimb(milli);
+//		var ok = climbPlateau(milli);
+		var ok = milli < NUMBER_OF_TICKS / 2 ? valleyPlateau(milli) : climbPlateau(milli);
 		debug("%d - isOk=%b\n", milli, ok);
 		return ok;
 	}
 
 
 	/**
-	 * ⎴⎵⎴⎵
+	 * ⎵⎴⎵⎴
 	 */
-	private static boolean plateauValley(long milli) {
+	private static boolean valleyPlateau(long milli) {
 		return (milli / PERIOD) % 2 == 0;
 	}
 
 	/**
-	 * ⎵/⎵/
+	 * /⎵/⎵
 	 */
-	private static boolean valleyClimb(long milli) {
+	private static boolean climbValley(long milli) {
 		var millisSincePeriodStart = milli % PERIOD;
 		final boolean ok;
-		if ((milli / PERIOD) % 2 == 1) {
+		if ((milli / PERIOD) % 2 == 0) {
 			ok = RANDOM.nextInt(PERIOD) < millisSincePeriodStart;
 		} else {
 			ok = false;
@@ -179,12 +181,12 @@ public class Tester {
 	}
 
 	/**
-	 * ⎴╱⎴╱
+	 * ╱⎴╱⎴
 	 */
-	private static boolean plateauClimb(long milli) {
+	private static boolean climbPlateau(long milli) {
 		var millisSincePeriodStart = milli % PERIOD;
 		final boolean ok;
-		if ((milli / PERIOD) % 2 == 1) {
+		if ((milli / PERIOD) % 2 == 0) {
 			ok = RANDOM.nextInt(PERIOD) < millisSincePeriodStart;
 		} else {
 			ok = true;
