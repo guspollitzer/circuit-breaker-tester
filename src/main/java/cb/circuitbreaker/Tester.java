@@ -22,16 +22,22 @@ public class Tester {
 	private static final Random RANDOM = new Random();
 	private static final int PERIOD = 20000;
 
-	private final int threadsPoolSize;
-	final List<Facade> facades;
+	private final int parallelism;
 
-	public Tester(int parallelism, List<Facade> facades) {
-		this.threadsPoolSize = parallelism * facades.size();
-		this.facades = facades;
+	/**
+	 * @param parallelism specifies how many request are processed concurrently by each circuit breaker under test.
+	 */
+	public Tester(int parallelism) {
+		this.parallelism = parallelism;
 	}
 
-	/** Runs the test and shows the results */
-	void run() {
+	/**
+	 * Runs the test and shows the results.
+	 *
+	 * @param facades     a list of {@link Facade} instances.
+	 */
+	void run(final List<Facade> facades) {
+		final var threadsPoolSize = this.parallelism * facades.size();
 		// Build a graph that every millisecond generates a request, hits all the circuit breaker instances with said request, and accumulates all the responses for each circuit breaker instance.
 		var graph = Flux.interval(Duration.ofMillis(TICK_PERIOD))
 				.takeWhile(milli -> milli < NUMBER_OF_TICKS)
@@ -78,13 +84,14 @@ public class Tester {
 		var statsOfAlwaysClosed = statsByName.get("alwaysClosed");
 		var sampleSuccesses = (statsOfAlwaysClosed.tryHits + statsOfAlwaysClosed.dropFails) * 100.0 / NUMBER_OF_TICKS;
 		print("Report%nTest duration:%d%nSample successes: %5.2f%%%n", testDuration, sampleSuccesses);
-		print("%20s%17s%17s%17s%17s%17s%17s%12s%n", "name", "hits", "fails", "tryHits", "tryFails","dropHits","dropFails", "closedTime");
+		print("%20s%17s%17s%17s%17s%17s%17s%12s%n", "name", "hits", "fails", "tryHits", "tryFails", "dropHits", "dropFails", "closedTime");
 		print("%s%n", report);
 	}
 
-	/** Accumulator of the statistics of a circuit breaker instance.
-	 * One instance of this class is created for each circuit breaker instance under test.
-	 * */
+	/**
+	 * Accumulator of the statistics of a circuit breaker instance. One instance of this class is created for each circuit breaker instance under
+	 * test.
+	 */
 	private static class Accum {
 		/**
 		 * number of service calls that were responded successfully
@@ -117,8 +124,10 @@ public class Tester {
 		}
 	}
 
-	/** Facade of an operation that calls a service through a circuit breakers.
-	 * The user should create an instance of this class for each instance of circuit breaker he wants to include in the test. */
+	/**
+	 * Facade of an operation that calls a service through a circuit breakers. The user should create an instance of this class for each instance of
+	 * circuit breaker he wants to include in the test.
+	 */
 	@FunctionalInterface
 	interface Facade {
 		Out doSomething(Request request);
@@ -130,15 +139,25 @@ public class Tester {
 		final Facade facade;
 	}
 
-	/** The request that is sent to the service.
-	 * Note that the request already knows if the service will be able to respond it. */
+	/**
+	 * The request that is sent to the service. Note that the request already knows if the service will be able to respond it.
+	 */
 	@ToString
 	@RequiredArgsConstructor
 	static class Request {
+		/** A request is generated every millisecond. This is the number of the millisecond since the test start. */
 		final long milli;
+		/** Tells the service simulator if the call should succeed of fail. */
 		final boolean isOk;
 	}
 
+	/**
+	 * A tuple that contains the response of the simulated service wrapped in an {@link Optional}, the request that originated said response, and the
+	 * name that identifies the instance of circuit breaker that decorates the service call.
+	 *
+	 * The response {@link Optional} is empty when the service call is executed while the circuit breaker is in open state. Abrupt terminations of the
+	 * service call should be handled and represented with a non-empty {@link Optional}.
+	 */
 	@ToString
 	@RequiredArgsConstructor
 	static class Out {
@@ -147,8 +166,10 @@ public class Tester {
 		final Optional<String> response;
 	}
 
-	/** Determines if the simulated service responds successfully or not.
-	 * The probability of success depends on the received millisecond. */
+	/**
+	 * Called during the {@link Request} generation to determines what the simulated service should respond: a successful or unsuccessful response.
+	 * The probability of success depends on the received millisecond.
+	 */
 	private static boolean isOk(long milli) {
 //		var ok = valleyPlateau(milli);
 //		var ok = valleyClimb(milli);
@@ -193,4 +214,20 @@ public class Tester {
 		}
 		return ok;
 	}
+
+
+	/** Simulates a service method that takes some time to complete.
+	 * This is the method that should be decorated by each circuit breaker under test.
+	 * @return the received long converted to String after waiting some time. */
+	public String simulatedServiceMethod(long milli) {
+		try {
+			if (parallelism > 1) {
+				Thread.sleep(parallelism);
+			}
+			return Long.toString(milli);
+		} catch (InterruptedException e) {
+			return String.format("work sleep interrupted at %s\n", milli);
+		}
+	}
+
 }

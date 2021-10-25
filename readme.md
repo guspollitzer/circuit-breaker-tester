@@ -8,10 +8,46 @@ Currently, only 3 types of circuit breakers are being compared:
 
 Many instances of the same type may be tested simultaneously. Usually with different configurations.
 
-## How does the tester work?
+## Usage
+For each circuit breaker instance you want to include in the test, you have to implement a function that calls to the simulated service through the circuit breaker.
+Said function should conform to the `Facade` interface, whose purpose is to homogenise the usage of different types of circuit breakers.  
+For example, the implementation of the decorated service call for a resilience4j circuit breaker's instance would be something similar to:
 
-There are two testers: one for synchronous services and the other for asynchronous ones.
-The following explanation is for the first one. The description for the second is easily derived.
+```java
+class Example {
+   void main() {
+      // Create a tester whose simulated service takes 8 milliseconds to respond, causing a paralleism of eight (the decorated service is called other seven times before responding the first).  
+      var tester = new Tester(8);
+
+      final var defaultCb4jConfig = new io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.Builder().build();
+      final var defaultCb4j = io.github.resilience4j.circuitbreaker.CircuitBreaker.of("default resilience4J breaker",
+              defaultCb4jConfig
+      );
+      final Tester.Facade defaultResilience4JFacade = (Tester.Request request) -> {
+         Optional<String> oResult;
+         try {
+            final var result = defaultCb4j.executeSupplier(() -> {
+               final var r = tester.simulatedServiceCall(request.milli);
+               return request.isOk ? r : "fail";
+            });
+            oResult = Optional.of(result);
+         } catch (CallNotPermittedException e) {
+            oResult = Optional.empty();
+         } catch (Exception e) {
+            e.printStackTrace();
+            oResult = Optional.empty();
+         }
+         return new Tester.Out("default resilience4J breaker", request, oResult);
+      };
+
+      tester.run(Collections.singletonList(defaultResilience4JFacade));
+   }
+}
+```
+The previous example includes the creation and execution of the test for a single circuit breaker instance.
+
+
+## How does the tester work?
 
 1. First, all the CB instances under test are created and initialized.
    For each CB, a facade of the service call decorated with the CB is created.
@@ -43,9 +79,10 @@ The success behavior of the simulated service if build by concatenating three el
 
 
 ## Some tests reports.
-Some tests were done to a chosen set of circuit breaker instances. All of them generate the same amount of request (NUMBER_OF_TICKS=80_000) at the same frequency (one request per millisecond). The only difference between the tests is the behaviour of the simulated service. 
+Three tests were done to a chosen set of circuit breaker instances. The three test generate the same amount of request (NUMBER_OF_TICKS=80_000) at the same frequency (one request per millisecond). The only difference between them is the behaviour of the simulated service. 
 
-### The service takes 8 milliseconds to respond (causing a parallelism of 8), and the probability of success over time is *valley - plateau - valley - plateau*, 20 seconds each.
+### Test #1: ⎵⎴⎵⎴
+The service takes 8 milliseconds to respond (causing a parallelism of 8), and the probability of success over time is *valley - plateau - valley - plateau*, 20 seconds each.
 ```
 Report
 Test duration:80839
@@ -72,7 +109,8 @@ Sample successes: 50.00%
        res4j config7:  74964 (93.71%),   5036 ( 6.30%),  39082 (90.47%),   4118 ( 9.53%),  35882 (97.51%),    918 ( 2.49%),     54.00%
 ```
 
-### The service takes 8 milliseconds to respond (causing a parallelism of 8), and the probability of success over time is *climb - plateau - climb - plateau*, 20 seconds each, 80 seconds in total.
+### Test #2: ╱⎴╱⎴
+The service takes 8 milliseconds to respond (causing a parallelism of 8), and the probability of success over time is *climb - plateau - climb - plateau*, 20 seconds each, 80 seconds in total.
 ```
 Report
 Test duration:83737
@@ -99,7 +137,8 @@ Sample successes: 75.01%
        res4j config7:  65906 (82.38%),  14094 (17.62%),  49050 (94.00%),   3133 ( 6.00%),  16856 (60.60%),  10961 (39.40%),     65.23%
 ```
 
-### The service takes 8 milliseconds to respond (causing a parallelism of 8), and the probability of success over time is *valley - plateau - climb - plateau*, 20 seconds each, 80 seconds in total.
+### Test #3: ⎵⎴╱⎴
+The service takes 8 milliseconds to respond (causing a parallelism of 8), and the probability of success over time is *valley - plateau - climb - plateau*, 20 seconds each, 80 seconds in total.
 ```
 Report
 Test duration:83725
@@ -126,7 +165,7 @@ Sample successes: 62.52%
        res4j config7:  70722 (88.40%),   9278 (11.60%),  44539 (92.13%),   3803 ( 7.87%),  26183 (82.71%),   5475 (17.29%),     60.43%
 ```
 
-#### A variant of the last with no parallelism:
+#### A variant of the test #3 with no parallelism:
 ```
 Report
 Test duration:80121
@@ -152,7 +191,7 @@ Sample successes: 62.50%
        res4j config6:  72403 (90.50%),   7597 ( 9.50%),  43347 (97.86%),    946 ( 2.14%),  29056 (81.37%),   6651 (18.63%),     55.37%
        res4j config7:  73532 (91.92%),   6468 ( 8.09%),  44972 (96.89%),   1442 ( 3.11%),  28560 (85.04%),   5026 (14.96%),     58.02%```
 ```
-#### A variant of the last with a parallelism of 64:
+#### A variant of test #3 with a parallelism of 64:
 ```
 Report
 Test duration:85079
@@ -180,4 +219,4 @@ Sample successes: 62.56%
 ```
 
 ### Conclusion
-According to these results, with the given configuration, the meli CB does not work at all, and the other two have similar performances: the resilience 4j CB has slightly better performance when the parallelism is very high (above 50), and my custom CB has slightly better performance when the parallelism is medium or low parallelism (below 50). 
+According to these results, with the given configuration, the meli CB does not work at all, and the other two work fine with similar performances: the resilience 4j CB has slightly better performance when the parallelism is very high (above 50), and my custom CB has slightly better performance when the parallelism is medium or low parallelism (below 50).

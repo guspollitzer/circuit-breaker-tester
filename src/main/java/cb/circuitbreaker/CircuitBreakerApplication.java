@@ -18,7 +18,7 @@ import static cb.circuitbreaker.Printer.debug;
 
 public class CircuitBreakerApplication {
 
-	private static final int PARALLELISM = 8;
+	Tester tester = new Tester(8);
 
 	@SneakyThrows
 	public static void main(String[] args) {
@@ -27,6 +27,7 @@ public class CircuitBreakerApplication {
 	}
 
 	void start() {
+
 		// Create the instances of CircuitBreakerSync that will be tested and compared, and wrap them within a Facade to homogenize the usage.
 		final Stream<Tester.Facade> myBreakerFacades;
 		{
@@ -134,16 +135,14 @@ public class CircuitBreakerApplication {
 				Stream.concat(meliBreakerFacakdes, res4jBreakerFacades)
 		).collect(Collectors.toList());
 
-		var tester = new Tester(PARALLELISM, facades);
-		tester.run();
+		tester.run(facades);
 	}
-
 
 	/** Builds a {@link Tester.Facade} for the synchronous version of my custom circuit breaker */
 	Tester.Facade buildAFacadeForACircuitBreakerSync(String name, CircuitBreakerSync breaker) {
 		return request -> {
 			var response = breaker.execute(
-					() -> work(request.milli),
+					() -> tester.simulatedServiceMethod(request.milli),
 					r -> request.isOk,
 					new CircuitBreaker.StateChangeListener() {
 						@Override
@@ -180,7 +179,7 @@ public class CircuitBreakerApplication {
 
 					@Override
 					public String get() {
-						return work(request.milli);
+						return tester.simulatedServiceMethod(request.milli);
 					}
 				});
 				oResult = Optional.of(result);
@@ -202,7 +201,7 @@ public class CircuitBreakerApplication {
 //			print("state of %s before is: %s\n\t; metrics: failuresRate=%f, failures=%d\n", name, cb.getState(), cb.getMetrics().getFailureRate(), cb.getMetrics().getNumberOfFailedCalls());
 			try {
 				var result = cb.executeSupplier(() -> {
-					var r = work(request.milli);
+					var r = tester.simulatedServiceMethod(request.milli);
 					return request.isOk ? r : "fail";
 				});
 				oResult = Optional.of(result);
@@ -217,19 +216,4 @@ public class CircuitBreakerApplication {
 			return new Tester.Out(name, request, oResult);
 		};
 	}
-
-
-	/** Simulates de work that the decorated service does.
-	 * @return the received long converted to String after waiting some time. */
-	String work(long milli) {
-		try {
-			if (PARALLELISM > 1) {
-				Thread.sleep(PARALLELISM);
-			}
-			return Long.toString(milli);
-		} catch (InterruptedException e) {
-			return String.format("work sleep interrupted at %s\n", milli);
-		}
-	}
-
 }
