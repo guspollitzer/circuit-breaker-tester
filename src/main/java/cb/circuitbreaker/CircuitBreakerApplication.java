@@ -77,37 +77,37 @@ public class CircuitBreakerApplication {
 					.slidingWindow(4, 1, CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
 					.waitDurationInOpenState(Duration.ofMillis(32))
 					.minimumNumberOfCalls(1)
-					.recordResult("fail"::equals)
+					.recordResult(Tester.FAILURE::equals)
 					.build();
 			var resConfig2 = new CircuitBreakerConfig.Builder()
 					.slidingWindow(8, 2, CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
 					.waitDurationInOpenState(Duration.ofMillis(32))
 					.minimumNumberOfCalls(1)
-					.recordResult("fail"::equals)
+					.recordResult(Tester.FAILURE::equals)
 					.build();
 			var resConfig3 = new CircuitBreakerConfig.Builder()
 					.slidingWindow(16, 4, CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
 					.waitDurationInOpenState(Duration.ofMillis(32))
 					.minimumNumberOfCalls(1)
-					.recordResult("fail"::equals)
+					.recordResult(Tester.FAILURE::equals)
 					.build();
 			var resConfig5 = new CircuitBreakerConfig.Builder()
 					.slidingWindow(4, 1, CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
 					.waitDurationInOpenState(Duration.ofMillis(64))
 					.minimumNumberOfCalls(1)
-					.recordResult("fail"::equals)
+					.recordResult(Tester.FAILURE::equals)
 					.build();
 			var resConfig6 = new CircuitBreakerConfig.Builder()
 					.slidingWindow(8, 2, CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
 					.waitDurationInOpenState(Duration.ofMillis(64))
 					.minimumNumberOfCalls(1)
-					.recordResult("fail"::equals)
+					.recordResult(Tester.FAILURE::equals)
 					.build();
 			var resConfig7 = new CircuitBreakerConfig.Builder()
 					.slidingWindow(16, 4, CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
 					.waitDurationInOpenState(Duration.ofMillis(64))
 					.minimumNumberOfCalls(1)
-					.recordResult("fail"::equals)
+					.recordResult(Tester.FAILURE::equals)
 					.build();
 			var resConfigs = Map.of(
 					"res4j config1", resConfig1,
@@ -187,7 +187,7 @@ public class CircuitBreakerApplication {
 				oResult = Optional.empty();
 			} catch (ExecutionException e) {
 				e.printStackTrace();
-				oResult = Optional.empty();
+				oResult = Optional.of(Tester.FAILURE);
 			}
 			return new Tester.Out(name, request, oResult);
 		};
@@ -202,14 +202,14 @@ public class CircuitBreakerApplication {
 			try {
 				var result = cb.executeSupplier(() -> {
 					var r = tester.simulatedServiceMethod(request.milli);
-					return request.isOk ? r : "fail";
+					return request.isOk ? r : Tester.FAILURE;
 				});
 				oResult = Optional.of(result);
 			} catch (CallNotPermittedException e) {
 				oResult = Optional.empty();
 			} catch (Exception e) {
 				e.printStackTrace();
-				oResult = Optional.empty();
+				oResult = Optional.of(Tester.FAILURE);
 //			} finally {
 //				print("state of %s after is: %s\n\t; metrics: failuresRate=%f, failures=%d\n", name, cb.getState(), cb.getMetrics().getFailureRate(), cb.getMetrics().getNumberOfFailedCalls());
 			}

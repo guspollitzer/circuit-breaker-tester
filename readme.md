@@ -35,7 +35,7 @@ class Example {
             oResult = Optional.empty();
          } catch (Exception e) {
             e.printStackTrace();
-            oResult = Optional.empty();
+            oResult = Optional.of("fail");
          }
          return new Tester.Out("default resilience4J breaker", request, oResult);
       };
@@ -72,7 +72,7 @@ Another indicator of the performance of the CB is the proportion of request on w
 ## About the service simulator behaviour
 As mentioned earlier, the decision of whenever the service simulator responds successfully or not is determined when the request is created.
 To resemble the behaviour of real services, the criteria that defines the simulated service's probability of success over time is not random but predefined.
-The success behavior of the simulated service if build by concatenating three elementary behaviours over time:
+The success behavior of the simulated service is build by concatenating three elementary behaviours over time:
    - plateau: the service always responds successfully
    - valley: the service never responds successfully
    - climb: the probability of success increases linearly from 0 to 1 over time.

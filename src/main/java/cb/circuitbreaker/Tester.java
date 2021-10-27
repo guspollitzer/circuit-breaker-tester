@@ -17,6 +17,7 @@ import static cb.circuitbreaker.Printer.print;
 
 public class Tester {
 
+	public static final String FAILURE = "fail";
 	private static final int NUMBER_OF_TICKS = 80000;
 	private static final int TICK_PERIOD = 1;
 	private static final Random RANDOM = new Random();
@@ -34,9 +35,10 @@ public class Tester {
 	/**
 	 * Runs the test and shows the results.
 	 *
-	 * @param facades     a list of {@link Facade} instances.
+	 * @param facades a list of {@link Facade} instances.
 	 */
 	void run(final List<Facade> facades) {
+		print("Collecting statistics data. That takes %d seconds. Pleas wait.%nSome log lines may be displayed. You may ignore them.%n", NUMBER_OF_TICKS/1000);
 		final var threadsPoolSize = this.parallelism * facades.size();
 		// Build a graph that every millisecond generates a request, hits all the circuit breaker instances with said request, and accumulates all the responses for each circuit breaker instance.
 		var graph = Flux.interval(Duration.ofMillis(TICK_PERIOD))
@@ -58,10 +60,11 @@ public class Tester {
 								accum = new Accum();
 								report.put(out.breakerName, accum);
 							}
-							if (out.request.isOk && out.response.isPresent()) {
+							var respondedSuccessfully = out.response.isPresent() && !out.response.get().equals(FAILURE);
+							if (out.request.isOk && respondedSuccessfully) {
 								accum.tryHits += 1;
 							}
-							if (out.request.isOk && out.response.isEmpty()) {
+							if (out.request.isOk && !respondedSuccessfully) {
 								accum.dropFails += 1;
 							}
 							if (!out.request.isOk && out.response.isEmpty()) {
@@ -94,19 +97,19 @@ public class Tester {
 	 */
 	private static class Accum {
 		/**
-		 * number of service calls that were responded successfully
+		 * number of service calls that were responded successfully. In other words, the CB made the right decision letting the call to continue.
 		 */
 		int tryHits;
 		/**
-		 * number of service calls that failed (not responded or responded with error)
+		 * number of service calls that failed (not responded or responded with error). In other words, the CB made the wrong decision letting the call continue.
 		 */
 		int tryFails;
 		/**
-		 * number of request that were dropped when the service was unavailable
+		 * number of request that were dropped when the service was unavailable. In other words, the CB made the right decision avoiding the call.
 		 */
 		int dropHits;
 		/**
-		 * number of request that were dropped when the service was available
+		 * number of request that were dropped (or the CB failed) when the service was available. In other words, the CB made the wrong decision avoiding the call.
 		 */
 		int dropFails;
 
@@ -145,9 +148,13 @@ public class Tester {
 	@ToString
 	@RequiredArgsConstructor
 	static class Request {
-		/** A request is generated every millisecond. This is the number of the millisecond since the test start. */
+		/**
+		 * A request is generated every millisecond. This is the number of the millisecond since the test start.
+		 */
 		final long milli;
-		/** Tells the service simulator if the call should succeed of fail. */
+		/**
+		 * Tells the service simulator if the call should succeed of fail.
+		 */
 		final boolean isOk;
 	}
 
@@ -216,9 +223,11 @@ public class Tester {
 	}
 
 
-	/** Simulates a service method that takes some time to complete.
-	 * This is the method that should be decorated by each circuit breaker under test.
-	 * @return the received long converted to String after waiting some time. */
+	/**
+	 * Simulates a service method that takes some time to complete. This is the method that should be decorated by each circuit breaker under test.
+	 *
+	 * @return the received long converted to String after waiting some time.
+	 */
 	public String simulatedServiceMethod(long milli) {
 		try {
 			if (parallelism > 1) {
